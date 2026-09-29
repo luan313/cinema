@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
@@ -46,8 +47,19 @@ func NewServer(version string) *Server {
 	return &Server{Client: cinemark.New(), Version: version, jobs: map[string]*job{}}
 }
 
-// Handler devolve as rotas; host é o "127.0.0.1:porta" aceito (anti DNS rebinding).
-func (s *Server) Handler(host string) http.Handler {
+// Config controla quem pode acessar a interface.
+//
+// Modo local: Host = "127.0.0.1:porta"; qualquer outro Host/Origin é recusado
+// (anti DNS rebinding). Modo servidor (Host vazio): aceita qualquer Host, mas a
+// Origin, quando presente, precisa ser a mesma do Host; Password, se definida,
+// exige HTTP Basic Auth (usuário livre).
+type Config struct {
+	Host     string
+	Password string
+}
+
+// Handler devolve as rotas protegidas conforme cfg.
+func (s *Server) Handler(cfg Config) http.Handler {
 	mux := http.NewServeMux()
 	sub, _ := fs.Sub(webFS, "web")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
@@ -64,18 +76,29 @@ func (s *Server) Handler(host string) http.Handler {
 	mux.HandleFunc("/api/search", s.search)
 	mux.HandleFunc("/api/job", s.jobStatus)
 	mux.HandleFunc("/api/cancel", s.cancel)
-	return hostGuard(host, mux)
+	return guard(cfg, mux)
 }
 
-func hostGuard(host string, next http.Handler) http.Handler {
+func guard(cfg Config, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Host != host {
+		want := cfg.Host
+		if want == "" {
+			want = r.Host // modo servidor: só exige mesma origem
+		} else if r.Host != want {
 			http.Error(w, "host inválido", http.StatusForbidden)
 			return
 		}
-		if o := r.Header.Get("Origin"); o != "" && o != "http://"+host {
+		if o := r.Header.Get("Origin"); o != "" && o != "http://"+want && o != "https://"+want {
 			http.Error(w, "origem inválida", http.StatusForbidden)
 			return
+		}
+		if cfg.Password != "" {
+			_, pass, ok := r.BasicAuth()
+			if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(cfg.Password)) != 1 {
+				w.Header().Set("WWW-Authenticate", `Basic realm="Cinema"`)
+				http.Error(w, "autenticação necessária", http.StatusUnauthorized)
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -265,11 +288,27 @@ func (s *Server) WaitIdle(grace time.Duration) {
 	}
 }
 
-// Listen abre uma porta local aleatória e devolve o endereço.
-func Listen() (net.Listener, string, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+// Listen abre addr (ex.: "127.0.0.1:0" para uma porta local aleatória) e
+// devolve o endereço efetivo "ip:porta".
+func Listen(addr string) (net.Listener, string, error) {
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, "", err
 	}
-	return l, fmt.Sprintf("127.0.0.1:%d", l.Addr().(*net.TCPAddr).Port), nil
+	ta := l.Addr().(*net.TCPAddr)
+	ip := ta.IP.String()
+	if ta.IP.IsUnspecified() {
+		ip = "0.0.0.0"
+	}
+	return l, fmt.Sprintf("%s:%d", ip, ta.Port), nil
+}
+
+// IsLoopback diz se addr só aceita conexões da própria máquina.
+func IsLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return host == "localhost" || (ip != nil && ip.IsLoopback())
 }
