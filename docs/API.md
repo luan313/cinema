@@ -43,7 +43,7 @@ Todas as respostas são `{ "success": bool, "messageError": string, "dataResult"
 - `type`: 7 tela e 9 texto livre não são assentos; 5, 6, 8, 10, 11, 18, 21 são especiais
   (cadeirante, obeso, acompanhante, mobilidade reduzida); o restante (1 normal, 4 VIP,
   13/14 namoradeira esquerda/direita…) é assento comum.
-- Uma sequência de assentos lado a lado = mesma `row` com `col` consecutivos.
+- Assentos "juntos" = mesma `row` com `col` consecutivos (lado a lado) e, opcionalmente, mesma `col` em `row` consecutivas (frente/trás). Corredores são colunas ausentes na numeração.
 
 ## Cuidados
 

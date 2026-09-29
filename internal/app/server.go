@@ -140,11 +140,11 @@ func (s *Server) options(ctx context.Context, r *http.Request) (any, error) {
 		}
 	}
 	out := struct {
-		Dates    []string `json:"dates"`
-		Theaters []named  `json:"theaters"`
-		Features []named  `json:"features"`
-		Audios   []named  `json:"audios"`
-	}{Dates: []string{}, Theaters: []named{}, Features: []named{}, Audios: []named{}}
+		Dates    []string  `json:"dates"`
+		Theaters []named   `json:"theaters"`
+		Features []feature `json:"features"`
+		Audios   []named   `json:"audios"`
+	}{Dates: []string{}, Theaters: []named{}, Features: []feature{}, Audios: []named{}}
 	for d := range dates {
 		out.Dates = append(out.Dates, d)
 	}
@@ -153,10 +153,10 @@ func (s *Server) options(ctx context.Context, r *http.Request) (any, error) {
 		out.Theaters = append(out.Theaters, named{id, n})
 	}
 	sort.Slice(out.Theaters, func(i, j int) bool { return out.Theaters[i].Name < out.Theaters[j].Name })
-	for id := range feats {
-		if n, ok := analyze.FeatureNames[id]; ok {
-			out.Features = append(out.Features, named{id, n})
-		}
+	// Lista todos os formatos conhecidos (ex.: Infinity Vision), mesmo sem sessão
+	// para este filme, para o filtro estar sempre disponível.
+	for id, n := range analyze.FeatureNames {
+		out.Features = append(out.Features, feature{ID: id, Name: n, Available: feats[id]})
 	}
 	sort.Slice(out.Features, func(i, j int) bool { return out.Features[i].ID < out.Features[j].ID })
 	for id := range auds {
@@ -166,6 +166,12 @@ func (s *Server) options(ctx context.Context, r *http.Request) (any, error) {
 	}
 	sort.Slice(out.Audios, func(i, j int) bool { return out.Audios[i].ID < out.Audios[j].ID })
 	return out, nil
+}
+
+type feature struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	Available bool   `json:"available"` // há sessões deste formato para o filme
 }
 
 type searchReq struct {

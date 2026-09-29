@@ -60,10 +60,11 @@ th{font-size:12.5px;color:var(--muted);cursor:pointer;position:sticky;top:0;back
   <h2>Áudio</h2><div class="chips" id="audios"></div>
   <h2>Opções</h2>
   <div class="chips">
+    <label class="chip"><input type="checkbox" id="vertical" checked> Contar também assentos da fileira da frente/de trás</label>
     <label class="chip"><input type="checkbox" id="onlygroups"> Só sessões com N juntos</label>
     <label class="chip"><input type="checkbox" id="special"> Contar assentos especiais (cadeirante, acompanhante…)</label>
   </div>
-  <p class="hint">Nada marcado em uma categoria = todos. “N juntos” conta grupos de N poltronas livres lado a lado na mesma fileira.</p>
+  <p class="hint">Nada marcado em uma categoria = todos. “N juntos” conta grupos de N poltronas livres coladas: lado a lado e, se marcado, também na fileira da frente ou de trás. Corredores separam os grupos. O número é um mínimo garantido.</p>
   <div class="row" style="margin-top:12px"><button id="go">Buscar vagas</button><button id="stop" class="ghost" hidden>Cancelar</button><span id="status" class="muted"></span></div>
   <div class="bar" style="margin-top:10px" hidden id="barwrap"><i id="bar"></i></div>
 </section>

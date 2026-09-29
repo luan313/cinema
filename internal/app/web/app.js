@@ -20,7 +20,9 @@ const chips = (el, items, name, val, label, checked) => {
   for (const it of items) {
     const l = document.createElement('label'); l.className = 'chip';
     const i = document.createElement('input'); i.type = 'checkbox'; i.name = name; i.value = val(it); i.checked = checked(val(it));
-    l.append(i, document.createTextNode(label(it))); el.appendChild(l);
+    l.append(i, document.createTextNode(label(it)));
+    if (it.available === false) { l.style.opacity = '.55'; l.title = 'Sem sessões deste formato para este filme'; }
+    el.appendChild(l);
   }
 };
 const checked = name => [...document.querySelectorAll(`input[name=${name}]:checked`)].map(i => i.value);
@@ -60,7 +62,7 @@ async function loadOptions() {
   chips($('features'), o.features, 'features', t => t.id, t => t.name, v => !f.features || f.features.includes(String(v)));
   chips($('audios'), o.audios, 'audios', t => t.id, t => t.name, v => !f.audios || f.audios.includes(String(v)));
   for (const [id, k] of [['from', 'from'], ['to', 'to'], ['group', 'group'], ['minfree', 'minfree']]) if (f[k] !== undefined) $(id).value = f[k];
-  $('onlygroups').checked = !!f.onlygroups; $('special').checked = !!f.special;
+  $('onlygroups').checked = !!f.onlygroups; $('vertical').checked = f.vertical !== false; $('special').checked = !!f.special;
   $('filters').hidden = false;
   if (!o.dates.length) $('status').textContent = 'Sem sessões à venda para este filme na cidade.';
 }
@@ -73,7 +75,7 @@ function collect() {
   return {
     dates: checked('dates'), theaterIds: checked('theaters').map(Number), features: checked('features').map(Number), audios: checked('audios').map(Number),
     timeFrom: $('from').value, timeTo: $('to').value, groupSize: Math.max(1, num('group')), minFree: num('minfree'),
-    onlyWithGroups: $('onlygroups').checked, includeSpecial: $('special').checked,
+    onlyWithGroups: $('onlygroups').checked, vertical: $('vertical').checked, includeSpecial: $('special').checked,
   };
 }
 function persist() {
@@ -83,7 +85,7 @@ function persist() {
     return all.some(i => !i.checked) ? all.filter(i => i.checked).map(i => i.value) : undefined;
   };
   saved.f = { dates: partial('dates'), theaters: partial('theaters'), features: partial('features'), audios: partial('audios'),
-    from: $('from').value, to: $('to').value, group: $('group').value, minfree: $('minfree').value, onlygroups: $('onlygroups').checked, special: $('special').checked };
+    from: $('from').value, to: $('to').value, group: $('group').value, minfree: $('minfree').value, onlygroups: $('onlygroups').checked, vertical: $('vertical').checked, special: $('special').checked };
   store.set('filters', saved);
 }
 
@@ -120,7 +122,7 @@ const cols = [
   ['audio', 'Áudio', r => r.audio, r => r.audio || '—'],
   ['free', 'Livres', r => r.stats.free, r => r.error ? `<span class="msg" title="${esc(r.error)}">erro</span>` : cell(r.stats.free, r.stats.total)],
   ['groups', 'Grupos de N', r => r.stats.groups, r => r.error ? '' : `<span class="${r.stats.groups ? 'ok' : 'bad'}">${r.stats.groups}</span>`],
-  ['run', 'Maior sequência', r => r.stats.bestRun, r => r.error ? '' : r.stats.bestRun],
+  ['run', 'Maior bloco', r => r.stats.bestRun, r => r.error ? '' : r.stats.bestRun],
 ];
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const cell = (free, total) => { const p = total ? free / total : 0; return `<span class="${p > .4 ? 'ok' : p > .15 ? 'warn' : 'bad'}">${free}</span> <span class="muted">/ ${total}</span>`; };

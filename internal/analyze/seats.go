@@ -20,19 +20,25 @@ var specialTypes = map[int]bool{5: true, 6: true, 8: true, 10: true, 11: true, 1
 type SeatStats struct {
 	Free      int `json:"free"`      // assentos livres
 	Total     int `json:"total"`     // assentos da sala (livres + ocupados)
-	BestRun   int `json:"bestRun"`   // maior sequência de assentos livres lado a lado
-	Groups    int `json:"groups"`    // quantos grupos de N lado a lado cabem
+	BestRun   int `json:"bestRun"`   // maior bloco de assentos livres conectados
+	Groups    int `json:"groups"`    // quantos grupos de N conectados cabem (mínimo garantido)
 	GroupSize int `json:"groupSize"` // N usado em Groups
 }
 
-// CountSeats analisa o mapa. includeSpecial inclui assentos de acessibilidade/
-// acompanhante na contagem; groupSize é o N do grupo lado a lado (mínimo 1).
-func CountSeats(sm *cinemark.SeatMap, groupSize int, includeSpecial bool) SeatStats {
+type point struct{ row, col int }
+
+// CountSeats analisa o mapa. Assentos livres são "juntos" quando vizinhos na
+// mesma fileira (colunas consecutivas) ou, com vertical=true, também quando
+// estão um atrás do outro (mesma coluna, fileiras consecutivas). Corredores
+// aparecem como colunas ausentes e, portanto, separam os grupos.
+// includeSpecial inclui assentos de acessibilidade/acompanhante; groupSize é o
+// N do grupo (mínimo 1).
+func CountSeats(sm *cinemark.SeatMap, groupSize int, includeSpecial, vertical bool) SeatStats {
 	if groupSize < 1 {
 		groupSize = 1
 	}
 	st := SeatStats{GroupSize: groupSize}
-	rows := map[int][]cinemark.Seat{}
+	free := map[point]bool{}
 	for _, e := range sm.Elements {
 		if nonSeatTypes[e.Type] || (specialTypes[e.Type] && !includeSpecial) {
 			continue
@@ -43,27 +49,79 @@ func CountSeats(sm *cinemark.SeatMap, groupSize int, includeSpecial bool) SeatSt
 		st.Total++
 		if e.Status == statusFree && e.Selectable {
 			st.Free++
-			rows[e.Row] = append(rows[e.Row], e)
+			free[point{e.Row, e.Col}] = true
 		}
 	}
-	for _, seats := range rows {
-		sort.Slice(seats, func(i, j int) bool { return seats[i].Col < seats[j].Col })
-		run := 1
-		flush := func() {
-			if run > st.BestRun {
-				st.BestRun = run
-			}
-			st.Groups += run / groupSize
+
+	// Ordem de varredura estável: de cima para baixo, da esquerda para a direita.
+	order := make([]point, 0, len(free))
+	for p := range free {
+		order = append(order, p)
+	}
+	sort.Slice(order, func(i, j int) bool {
+		if order[i].row != order[j].row {
+			return order[i].row < order[j].row
 		}
-		for i := 1; i < len(seats); i++ {
-			if seats[i].Col == seats[i-1].Col+1 {
-				run++
-				continue
-			}
-			flush()
-			run = 1
+		return order[i].col < order[j].col
+	})
+	neighbors := func(p point) []point {
+		n := []point{{p.row, p.col + 1}, {p.row + 1, p.col}, {p.row, p.col - 1}, {p.row - 1, p.col}}
+		if !vertical {
+			n = []point{{p.row, p.col + 1}, {p.row, p.col - 1}}
 		}
-		flush()
+		return n
+	}
+
+	// Maior bloco conectado.
+	seen := map[point]bool{}
+	for _, start := range order {
+		if seen[start] {
+			continue
+		}
+		size, queue := 0, []point{start}
+		seen[start] = true
+		for len(queue) > 0 {
+			p := queue[0]
+			queue = queue[1:]
+			size++
+			for _, q := range neighbors(p) {
+				if free[q] && !seen[q] {
+					seen[q] = true
+					queue = append(queue, q)
+				}
+			}
+		}
+		if size > st.BestRun {
+			st.BestRun = size
+		}
+	}
+
+	// Grupos de N: recorta blocos conectados de N assentos, começando pelo canto
+	// superior esquerdo. É um mínimo garantido (uma heurística gulosa), exato
+	// quando só a horizontal conta.
+	used := map[point]bool{}
+	for _, start := range order {
+		if used[start] {
+			continue
+		}
+		group, visited, queue := []point{}, map[point]bool{start: true}, []point{start}
+		for len(queue) > 0 && len(group) < groupSize {
+			p := queue[0]
+			queue = queue[1:]
+			group = append(group, p)
+			for _, q := range neighbors(p) {
+				if free[q] && !used[q] && !visited[q] {
+					visited[q] = true
+					queue = append(queue, q)
+				}
+			}
+		}
+		if len(group) == groupSize {
+			for _, p := range group {
+				used[p] = true
+			}
+			st.Groups++
+		}
 	}
 	return st
 }

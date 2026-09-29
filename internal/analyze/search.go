@@ -25,6 +25,7 @@ type Filters struct {
 	MinFree        int      `json:"minFree"`    // mínimo de assentos livres
 	OnlyWithGroups bool     `json:"onlyWithGroups"`
 	IncludeSpecial bool     `json:"includeSpecial"`
+	Vertical       bool     `json:"vertical"` // também vale assento na fileira da frente/de trás
 }
 
 type Row struct {
@@ -149,7 +150,7 @@ func Search(ctx context.Context, c *cinemark.Client, movieID string, cityID int,
 				if err != nil {
 					row.Error = err.Error()
 				} else {
-					row.Stats = CountSeats(sm, f.GroupSize, f.IncludeSpecial)
+					row.Stats = CountSeats(sm, f.GroupSize, f.IncludeSpecial, f.Vertical)
 				}
 				rows[i] = row
 				n := atomic.AddInt64(&done, 1)
