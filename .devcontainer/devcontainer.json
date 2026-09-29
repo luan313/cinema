@@ -1,9 +1,0 @@
-{
-  "name": "Cinema",
-  "image": "mcr.microsoft.com/devcontainers/go:1-1.24-bookworm",
-  "forwardPorts": [8080],
-  "portsAttributes": {
-    "8080": { "label": "Cinema", "onAutoForward": "openBrowser" }
-  },
-  "postStartCommand": "nohup go run ./cmd/cinema -remote -addr 127.0.0.1:8080 > /tmp/cinema.log 2>&1 &"
-}

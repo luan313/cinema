@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,33 +16,13 @@ import (
 var version = "dev"
 
 func main() {
-	addr := flag.String("addr", "127.0.0.1:0", "endereço para escutar (127.0.0.1:0 = porta local aleatória)")
-	remote := flag.Bool("remote", false, "modo servidor (Codespaces/hospedagem): não abre o navegador, não encerra sozinho e aceita qualquer Host")
-	flag.Parse()
-
-	// A senha vem do ambiente para não aparecer na lista de processos.
-	password := os.Getenv("CINEMA_PASSWORD")
-	if *remote && !app.IsLoopback(*addr) && password == "" {
-		fatal(fmt.Errorf("em modo servidor com endereço público (%s) defina a senha em CINEMA_PASSWORD", *addr))
-	}
-
-	l, host, err := app.Listen(*addr)
+	l, host, err := app.Listen()
 	if err != nil {
 		fatal(err)
 	}
 	srv := app.NewServer(version)
-	if *remote {
-		cfg := app.Config{Password: password}
-		fmt.Println("Cinema (modo servidor) escutando em", host)
-		if err := http.Serve(l, srv.Handler(cfg)); err != nil {
-			fatal(err)
-		}
-		return
-	}
-
-	cfg := app.Config{Host: host}
 	go func() {
-		if err := http.Serve(l, srv.Handler(cfg)); err != nil {
+		if err := http.Serve(l, srv.Handler(host)); err != nil {
 			fatal(err)
 		}
 	}()
