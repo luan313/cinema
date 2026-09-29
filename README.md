@@ -23,6 +23,9 @@ Para um PC onde você não pode rodar programas:
 2. Aguarde o ambiente subir (1 a 2 min na primeira vez). O app inicia sozinho na porta 8080.
 3. Abra a aba **Portas** (Ports) do Codespaces, clique no ícone de globo da porta 8080 (**Cinema**) e use a página que abrir.
    A porta é privada por padrão: só você, logado no GitHub, acessa.
+   Se o editor do Codespaces não abrir ("you are offline / firewall"), a rede está bloqueando o
+   WebSocket de `*.github.dev`. O app sobe sozinho ao iniciar o Codespace (sem precisar do editor):
+   inicie-o em github.com/codespaces e abra direto `https://<nome-do-codespace>-8080.app.github.dev/`.
 4. Se o app não estiver rodando, no terminal do Codespaces: `go run ./cmd/cinema -remote -addr 127.0.0.1:8080`.
 5. Ao terminar, pare o Codespace (canto inferior esquerdo → *Stop*) para não gastar a cota gratuita.
 

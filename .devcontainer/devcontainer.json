@@ -5,5 +5,5 @@
   "portsAttributes": {
     "8080": { "label": "Cinema", "onAutoForward": "openBrowser" }
   },
-  "postAttachCommand": "nohup go run ./cmd/cinema -remote -addr 127.0.0.1:8080 > /tmp/cinema.log 2>&1 &"
+  "postStartCommand": "nohup go run ./cmd/cinema -remote -addr 127.0.0.1:8080 > /tmp/cinema.log 2>&1 &"
 }
