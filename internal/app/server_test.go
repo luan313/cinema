@@ -79,3 +79,22 @@ func TestIsLoopback(t *testing.T) {
 		}
 	}
 }
+
+func TestRemoteModeForwardedHost(t *testing.T) {
+	h := NewServer("test").Handler(Config{})
+	r := httptest.NewRequest("POST", "/api/cancel", nil)
+	r.Host = "localhost:8080"
+	r.Header.Set("Origin", "https://abc-8080.app.github.dev")
+	r.Header.Set("X-Forwarded-Host", "abc-8080.app.github.dev")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("com X-Forwarded-Host: %d", w.Code)
+	}
+	r.Header.Del("X-Forwarded-Host")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("sem X-Forwarded-Host deveria recusar: %d", w.Code)
+	}
+}

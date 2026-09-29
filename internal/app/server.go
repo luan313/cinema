@@ -81,14 +81,20 @@ func (s *Server) Handler(cfg Config) http.Handler {
 
 func guard(cfg Config, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		want := cfg.Host
-		if want == "" {
-			want = r.Host // modo servidor: só exige mesma origem
-		} else if r.Host != want {
+		// Hosts aceitos para a Origin. No modo servidor, proxies (Codespaces,
+		// hospedagens) podem reescrever o Host; por isso vale também o
+		// X-Forwarded-Host.
+		hosts := []string{cfg.Host}
+		if cfg.Host == "" {
+			hosts = []string{r.Host}
+			if fh := r.Header.Get("X-Forwarded-Host"); fh != "" {
+				hosts = append(hosts, fh)
+			}
+		} else if r.Host != cfg.Host {
 			http.Error(w, "host inválido", http.StatusForbidden)
 			return
 		}
-		if o := r.Header.Get("Origin"); o != "" && o != "http://"+want && o != "https://"+want {
+		if o := r.Header.Get("Origin"); o != "" && !originAllowed(o, hosts) {
 			http.Error(w, "origem inválida", http.StatusForbidden)
 			return
 		}
@@ -102,6 +108,15 @@ func guard(cfg Config, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func originAllowed(origin string, hosts []string) bool {
+	for _, h := range hosts {
+		if origin == "http://"+h || origin == "https://"+h {
+			return true
+		}
+	}
+	return false
 }
 
 func intParam(r *http.Request, k string) int {
