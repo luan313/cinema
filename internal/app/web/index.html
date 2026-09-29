@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cinema · vagas por sessão</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2330;--muted:#647084;--line:#e2e6ec;--accent:#c8102e;--ok:#12805c;--warn:#b26a00;--bad:#b42318}
+@media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--fg:#e8ecf2;--muted:#95a0b3;--line:#2a3140;--accent:#ff4d66;--ok:#3ecf9a;--warn:#f0b04a;--bad:#ff7a70}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,"Segoe UI",sans-serif}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:22px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:4px}
+select,input[type=text],input[type=number],input[type=time]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;cursor:pointer;user-select:none;background:var(--bg)}
+.chip input{margin:0}.chip:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:default}
+h2{font-size:14px;margin:14px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}.bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12.5px;color:var(--muted);cursor:pointer;position:sticky;top:0;background:var(--card)}
+.wrap{overflow-x:auto}
+.ok{color:var(--ok);font-weight:600}.warn{color:var(--warn);font-weight:600}.bad{color:var(--bad);font-weight:600}
+.msg{color:var(--bad)}.muted{color:var(--muted)}
+.hint{font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<h1>Cinema · vagas por sessão</h1>
+<p class="sub">Consulta pública do Cinemark (sem login). Escolha o filme, defina os filtros e veja quantas poltronas restam em cada sessão. <span id="ver" class="muted"></span></p>
+
+<section class="card">
+  <div class="grid">
+    <div><label for="state">Estado</label><select id="state"></select></div>
+    <div><label for="city">Cidade</label><select id="city" disabled></select></div>
+    <div><label for="movie">Filme</label><select id="movie" disabled></select></div>
+  </div>
+  <div id="err" class="msg"></div>
+</section>
+
+<section class="card" id="filters" hidden>
+  <div class="grid">
+    <div><label for="from">Horário a partir de</label><input id="from" type="time"></div>
+    <div><label for="to">Horário até</label><input id="to" type="time"></div>
+    <div><label for="group">Assentos juntos (N)</label><input id="group" type="number" min="1" max="20" value="2"></div>
+    <div><label for="minfree">Mínimo de assentos livres</label><input id="minfree" type="number" min="0" value="0"></div>
+  </div>
+  <h2>Datas</h2><div class="chips" id="dates"></div>
+  <h2>Cinemas</h2><div class="chips" id="theaters"></div>
+  <h2>Tecnologia</h2><div class="chips" id="features"></div>
+  <h2>Áudio</h2><div class="chips" id="audios"></div>
+  <h2>Opções</h2>
+  <div class="chips">
+    <label class="chip"><input type="checkbox" id="onlygroups"> Só sessões com N juntos</label>
+    <label class="chip"><input type="checkbox" id="special"> Contar assentos especiais (cadeirante, acompanhante…)</label>
+  </div>
+  <p class="hint">Nada marcado em uma categoria = todos. “N juntos” conta grupos de N poltronas livres lado a lado na mesma fileira.</p>
+  <div class="row" style="margin-top:12px"><button id="go">Buscar vagas</button><button id="stop" class="ghost" hidden>Cancelar</button><span id="status" class="muted"></span></div>
+  <div class="bar" style="margin-top:10px" hidden id="barwrap"><i id="bar"></i></div>
+</section>
+
+<section class="card" id="results" hidden>
+  <div class="row" style="justify-content:space-between"><strong id="summary"></strong><button class="ghost" id="csv">Exportar CSV</button></div>
+  <div class="wrap"><table><thead><tr id="thead"></tr></thead><tbody id="rows"></tbody></table></div>
+</section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

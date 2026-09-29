@@ -1,0 +1,117 @@
+{
+ "success": true,
+ "messageError": null,
+ "dataResult": [
+  {
+   "distance": 5657.9,
+   "date": "2026-09-29T01:00:00",
+   "theaterId": 716,
+   "theaterName": "Aricanduva",
+   "rooms": [
+    {
+     "number": 7,
+     "features": [
+      7
+     ],
+     "audio": 10,
+     "sessions": [
+      {
+       "id": "04d7ac33-52e4-4304-aa36-01362f39336d",
+       "date": "2026-09-29T17:15:00",
+       "hybrid": false,
+       "expired": false,
+       "moviePrintCode": 43811
+      },
+      {
+       "id": "ba886e40-163c-4645-964d-f75424a76d4c",
+       "date": "2026-09-29T22:10:00",
+       "hybrid": false,
+       "expired": false,
+       "moviePrintCode": 43811
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "distance": 5659.3,
+   "date": "2026-09-29T01:00:00",
+   "theaterId": 759,
+   "theaterName": "Cinemark Internacional Shopping",
+   "rooms": [
+    {
+     "number": 8,
+     "features": [
+      7
+     ],
+     "audio": 10,
+     "sessions": [
+      {
+       "id": "22bb7bf5-dce1-456c-bc5e-57cfee43ce7b",
+       "date": "2026-09-29T15:30:00",
+       "hybrid": false,
+       "expired": true,
+       "moviePrintCode": 43812
+      }
+     ]
+    },
+    {
+     "number": 15,
+     "features": [
+      7
+     ],
+     "audio": 10,
+     "sessions": [
+      {
+       "id": "b494dec7-732e-4f1d-8983-81b81379a073",
+       "date": "2026-09-29T19:20:00",
+       "hybrid": false,
+       "expired": false,
+       "moviePrintCode": 43811
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "distance": 5671.5,
+   "date": "2026-09-29T01:00:00",
+   "theaterId": 723,
+   "theaterName": "Patio Paulista",
+   "rooms": [
+    {
+     "number": 1,
+     "features": [
+      7
+     ],
+     "audio": 10,
+     "sessions": [
+      {
+       "id": "e9074475-1e68-4af1-b296-0a5e07e239ef",
+       "date": "2026-09-29T13:50:00",
+       "hybrid": false,
+       "expired": true,
+       "moviePrintCode": 43811
+      }
+     ]
+    },
+    {
+     "number": 7,
+     "features": [
+      7
+     ],
+     "audio": 10,
+     "sessions": [
+      {
+       "id": "13f9eec2-07c7-4705-9fe1-6c23a712a6e5",
+       "date": "2026-09-29T19:30:00",
+       "hybrid": false,
+       "expired": false,
+       "moviePrintCode": 43812
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
