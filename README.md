@@ -41,6 +41,7 @@ git tag v0.1.0 && git push origin v0.1.0
 O workflow `.github/workflows/release.yml` roda os testes, compila `cinema.exe` e
 `setup.exe` para Windows e publica `cinema-windows-x64.zip` (setup + executável),
 `cinema.exe` (baixado pelo setup) e `SHA256SUMS.txt`.
+Também dá para disparar manualmente em Actions → Release → Run workflow, informando a tag.
 
 ## Aviso
 
