@@ -3,6 +3,7 @@ package analyze
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/luan313/cinema/internal/cinemark"
 )
@@ -27,13 +28,58 @@ type SeatStats struct {
 
 type point struct{ row, col int }
 
+// SeatOptions define o que conta como vaga e como os assentos se agrupam.
+type SeatOptions struct {
+	GroupSize      int    // N do grupo (mínimo 1)
+	IncludeSpecial bool   // inclui assentos de acessibilidade/acompanhante
+	Vertical       bool   // também vale assento na fileira da frente/de trás
+	RowFrom        string // letra da primeira fileira (A = frente, perto da tela); vazio = sem limite
+	RowTo          string // letra da última fileira; vazio = sem limite
+}
+
+// rowLabel devolve a letra da fileira ("D 4" -> "D"), em maiúsculas.
+func rowLabel(name string) string {
+	f := strings.Fields(name)
+	if len(f) == 0 {
+		return ""
+	}
+	return strings.ToUpper(f[0])
+}
+
+// rowBefore compara letras de fileira: A < B < ... < Z < AA < AB ...
+func rowBefore(a, b string) bool {
+	if len(a) != len(b) {
+		return len(a) < len(b)
+	}
+	return a < b
+}
+
+// rowInRange diz se a fileira está entre from e to (inclusive). Com limite
+// definido, assentos sem letra de fileira ficam de fora.
+func rowInRange(label, from, to string) bool {
+	if from == "" && to == "" {
+		return true
+	}
+	if label == "" {
+		return false
+	}
+	if from != "" && rowBefore(label, from) {
+		return false
+	}
+	if to != "" && rowBefore(to, label) {
+		return false
+	}
+	return true
+}
+
 // CountSeats analisa o mapa. Assentos livres são "juntos" quando vizinhos na
-// mesma fileira (colunas consecutivas) ou, com vertical=true, também quando
-// estão um atrás do outro (mesma coluna, fileiras consecutivas). Corredores
-// aparecem como colunas ausentes e, portanto, separam os grupos.
-// includeSpecial inclui assentos de acessibilidade/acompanhante; groupSize é o
-// N do grupo (mínimo 1).
-func CountSeats(sm *cinemark.SeatMap, groupSize int, includeSpecial, vertical bool) SeatStats {
+// mesma fileira (colunas consecutivas) ou, com Vertical, também quando estão um
+// atrás do outro (mesma coluna, fileiras consecutivas). Corredores aparecem
+// como colunas ausentes e, portanto, separam os grupos. Só entram na conta os
+// assentos das fileiras entre RowFrom e RowTo.
+func CountSeats(sm *cinemark.SeatMap, o SeatOptions) SeatStats {
+	groupSize, includeSpecial, vertical := o.GroupSize, o.IncludeSpecial, o.Vertical
+	from, to := strings.ToUpper(strings.TrimSpace(o.RowFrom)), strings.ToUpper(strings.TrimSpace(o.RowTo))
 	if groupSize < 1 {
 		groupSize = 1
 	}
@@ -44,6 +90,9 @@ func CountSeats(sm *cinemark.SeatMap, groupSize int, includeSpecial, vertical bo
 			continue
 		}
 		if !e.Selectable && e.Status == statusFree {
+			continue
+		}
+		if !rowInRange(rowLabel(e.Name), from, to) {
 			continue
 		}
 		st.Total++

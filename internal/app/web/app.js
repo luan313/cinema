@@ -29,6 +29,12 @@ const checked = name => [...document.querySelectorAll(`input[name=${name}]:check
 
 let job = null, timer = null, rows = [], sortKey = 'when', sortDir = 1, saved = store.get('filters', {});
 
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+for (const id of ['rowfrom', 'rowto']) {
+  const el = $(id);
+  el.innerHTML = '<option value="">Todas</option>' + LETTERS.map(l => `<option value="${l}">${l}</option>`).join('');
+}
+
 async function init() {
   setInterval(() => fetch('/api/ping').catch(() => {}), 5000); fetch('/api/ping').catch(() => {});
   api('version').then(v => $('ver').textContent = '· ' + v).catch(() => {});
@@ -62,6 +68,7 @@ async function loadOptions() {
   chips($('features'), o.features, 'features', t => t.id, t => t.name, v => !f.features || f.features.includes(String(v)));
   chips($('audios'), o.audios, 'audios', t => t.id, t => t.name, v => !f.audios || f.audios.includes(String(v)));
   for (const [id, k] of [['from', 'from'], ['to', 'to'], ['group', 'group'], ['minfree', 'minfree']]) if (f[k] !== undefined) $(id).value = f[k];
+  $('rowfrom').value = f.rowfrom || ''; $('rowto').value = f.rowto || '';
   $('onlygroups').checked = !!f.onlygroups; $('vertical').checked = f.vertical !== false; $('special').checked = !!f.special;
   $('filters').hidden = false;
   if (!o.dates.length) $('status').textContent = 'Sem sessões à venda para este filme na cidade.';
@@ -74,7 +81,7 @@ function collect() {
   const num = id => parseInt($(id).value, 10) || 0;
   return {
     dates: checked('dates'), theaterIds: checked('theaters').map(Number), features: checked('features').map(Number), audios: checked('audios').map(Number),
-    timeFrom: $('from').value, timeTo: $('to').value, groupSize: Math.max(1, num('group')), minFree: num('minfree'),
+    timeFrom: $('from').value, timeTo: $('to').value, rowFrom: $('rowfrom').value, rowTo: $('rowto').value, groupSize: Math.max(1, num('group')), minFree: num('minfree'),
     onlyWithGroups: $('onlygroups').checked, vertical: $('vertical').checked, includeSpecial: $('special').checked,
   };
 }
@@ -85,7 +92,7 @@ function persist() {
     return all.some(i => !i.checked) ? all.filter(i => i.checked).map(i => i.value) : undefined;
   };
   saved.f = { dates: partial('dates'), theaters: partial('theaters'), features: partial('features'), audios: partial('audios'),
-    from: $('from').value, to: $('to').value, group: $('group').value, minfree: $('minfree').value, onlygroups: $('onlygroups').checked, vertical: $('vertical').checked, special: $('special').checked };
+    from: $('from').value, to: $('to').value, rowfrom: $('rowfrom').value, rowto: $('rowto').value, group: $('group').value, minfree: $('minfree').value, onlygroups: $('onlygroups').checked, vertical: $('vertical').checked, special: $('special').checked };
   store.set('filters', saved);
 }
 

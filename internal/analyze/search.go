@@ -26,6 +26,8 @@ type Filters struct {
 	OnlyWithGroups bool     `json:"onlyWithGroups"`
 	IncludeSpecial bool     `json:"includeSpecial"`
 	Vertical       bool     `json:"vertical"` // também vale assento na fileira da frente/de trás
+	RowFrom        string   `json:"rowFrom"`  // letra da primeira fileira (A = frente); vazio = todas
+	RowTo          string   `json:"rowTo"`    // letra da última fileira; vazio = todas
 }
 
 type Row struct {
@@ -60,16 +62,24 @@ func containsInt(list []int, v int) bool {
 	return false
 }
 
-func anyFeature(want, have []int) bool {
+// onlyWantedFeatures vale para a sala quando todos os seus formatos conhecidos
+// estão marcados no filtro: desmarcar "3D" tira toda sessão 3D, mesmo que ela
+// também seja XD ou Infinity Vision. Sem filtro, tudo passa.
+func onlyWantedFeatures(want, have []int) bool {
 	if len(want) == 0 {
 		return true
 	}
+	known := 0
 	for _, h := range have {
-		if containsInt(want, h) {
-			return true
+		if _, ok := FeatureNames[h]; !ok {
+			continue
+		}
+		known++
+		if !containsInt(want, h) {
+			return false
 		}
 	}
-	return false
+	return known > 0
 }
 
 // Select aplica os filtros que não exigem consultar o mapa de assentos.
@@ -80,7 +90,7 @@ func Select(days []cinemark.TheaterDay, f Filters) []candidate {
 			continue
 		}
 		for _, r := range d.Rooms {
-			if !anyFeature(f.Features, r.Features) || !containsInt(f.Audios, r.Audio) {
+			if !onlyWantedFeatures(f.Features, r.Features) || !containsInt(f.Audios, r.Audio) {
 				continue
 			}
 			for _, s := range r.Sessions {
@@ -150,7 +160,7 @@ func Search(ctx context.Context, c *cinemark.Client, movieID string, cityID int,
 				if err != nil {
 					row.Error = err.Error()
 				} else {
-					row.Stats = CountSeats(sm, f.GroupSize, f.IncludeSpecial, f.Vertical)
+					row.Stats = CountSeats(sm, SeatOptions{GroupSize: f.GroupSize, IncludeSpecial: f.IncludeSpecial, Vertical: f.Vertical, RowFrom: f.RowFrom, RowTo: f.RowTo})
 				}
 				rows[i] = row
 				n := atomic.AddInt64(&done, 1)

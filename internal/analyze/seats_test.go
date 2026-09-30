@@ -24,11 +24,11 @@ func TestCountSeats(t *testing.T) {
 	sm.Elements = append(sm.Elements,
 		cinemark.Seat{Row: 1, Col: 0, Type: 9, Status: 1},
 		cinemark.Seat{Row: 0, Col: 5, Type: 7, Status: 1})
-	st := CountSeats(sm, 2, false, false)
+	st := CountSeats(sm, SeatOptions{GroupSize: 2, IncludeSpecial: false, Vertical: false})
 	if st.Free != 5 || st.Total != 6 || st.BestRun != 3 || st.Groups != 2 {
 		t.Fatalf("stats erradas: %+v", st)
 	}
-	if st := CountSeats(sm, 3, false, false); st.Groups != 1 {
+	if st := CountSeats(sm, SeatOptions{GroupSize: 3, IncludeSpecial: false, Vertical: false}); st.Groups != 1 {
 		t.Fatalf("grupos de 3: %+v", st)
 	}
 }
@@ -38,10 +38,10 @@ func TestSpecialSeats(t *testing.T) {
 		{Row: 1, Col: 1, Status: 1, Type: 5, Selectable: true},
 		{Row: 1, Col: 2, Status: 1, Type: 1, Selectable: true},
 	}}
-	if st := CountSeats(sm, 1, false, false); st.Free != 1 {
+	if st := CountSeats(sm, SeatOptions{GroupSize: 1, IncludeSpecial: false, Vertical: false}); st.Free != 1 {
 		t.Fatalf("sem especiais: %+v", st)
 	}
-	if st := CountSeats(sm, 1, true, false); st.Free != 2 || st.BestRun != 2 {
+	if st := CountSeats(sm, SeatOptions{GroupSize: 1, IncludeSpecial: true, Vertical: false}); st.Free != 2 || st.BestRun != 2 {
 		t.Fatalf("com especiais: %+v", st)
 	}
 }
@@ -57,7 +57,7 @@ func TestRealSeatMap(t *testing.T) {
 	if err := json.Unmarshal(b, &env); err != nil {
 		t.Fatal(err)
 	}
-	st := CountSeats(&env.DataResult, 2, false, false)
+	st := CountSeats(&env.DataResult, SeatOptions{GroupSize: 2, IncludeSpecial: false, Vertical: false})
 	if st.Total == 0 || st.Free > st.Total || st.BestRun < 1 {
 		t.Fatalf("mapa real inconsistente: %+v", st)
 	}
@@ -71,7 +71,7 @@ func TestLoveseatsCountAsSeats(t *testing.T) {
 		{Row: 1, Col: 3, Status: 3, Type: 13, Selectable: true},
 		{Row: 1, Col: 4, Status: 1, Type: 21, Selectable: true},
 	}}
-	st := CountSeats(sm, 2, false, false)
+	st := CountSeats(sm, SeatOptions{GroupSize: 2, IncludeSpecial: false, Vertical: false})
 	if st.Free != 2 || st.Total != 3 || st.Groups != 1 {
 		t.Fatalf("namoradeiras: %+v", st)
 	}
@@ -85,10 +85,10 @@ func TestVerticalGroups(t *testing.T) {
 		{Row: 2, Col: 1, Status: 1, Type: 1, Selectable: true},
 		{Row: 2, Col: 2, Status: 3, Type: 1, Selectable: true},
 	}}
-	if st := CountSeats(sm, 2, false, false); st.Groups != 0 || st.BestRun != 1 {
+	if st := CountSeats(sm, SeatOptions{GroupSize: 2, IncludeSpecial: false, Vertical: false}); st.Groups != 0 || st.BestRun != 1 {
 		t.Fatalf("horizontal: %+v", st)
 	}
-	if st := CountSeats(sm, 2, false, true); st.Groups != 1 || st.BestRun != 2 {
+	if st := CountSeats(sm, SeatOptions{GroupSize: 2, IncludeSpecial: false, Vertical: true}); st.Groups != 1 || st.BestRun != 2 {
 		t.Fatalf("com vertical: %+v", st)
 	}
 }
@@ -102,13 +102,13 @@ func TestBlock2x2(t *testing.T) {
 		}
 	}
 	sm := &cinemark.SeatMap{Elements: els}
-	if st := CountSeats(sm, 2, false, true); st.Groups != 2 || st.BestRun != 4 {
+	if st := CountSeats(sm, SeatOptions{GroupSize: 2, IncludeSpecial: false, Vertical: true}); st.Groups != 2 || st.BestRun != 4 {
 		t.Fatalf("2x2 N=2: %+v", st)
 	}
-	if st := CountSeats(sm, 4, false, true); st.Groups != 1 {
+	if st := CountSeats(sm, SeatOptions{GroupSize: 4, IncludeSpecial: false, Vertical: true}); st.Groups != 1 {
 		t.Fatalf("2x2 N=4: %+v", st)
 	}
-	if st := CountSeats(sm, 3, false, false); st.Groups != 0 {
+	if st := CountSeats(sm, SeatOptions{GroupSize: 3, IncludeSpecial: false, Vertical: false}); st.Groups != 0 {
 		t.Fatalf("2x2 N=3 horizontal: %+v", st)
 	}
 }
@@ -119,7 +119,50 @@ func TestAisleSplits(t *testing.T) {
 		{Row: 1, Col: 1, Status: 1, Type: 1, Selectable: true},
 		{Row: 1, Col: 3, Status: 1, Type: 1, Selectable: true},
 	}}
-	if st := CountSeats(sm, 2, false, true); st.Groups != 0 || st.BestRun != 1 {
+	if st := CountSeats(sm, SeatOptions{GroupSize: 2, IncludeSpecial: false, Vertical: true}); st.Groups != 0 || st.BestRun != 1 {
 		t.Fatalf("corredor: %+v", st)
+	}
+}
+
+func TestRowFilter(t *testing.T) {
+	mk := func(row int, name string) cinemark.Seat {
+		return cinemark.Seat{Row: row, Col: 1, Name: name, Status: 1, Type: 1, Selectable: true}
+	}
+	sm := &cinemark.SeatMap{Elements: []cinemark.Seat{mk(3, "C 1"), mk(2, "d 1"), mk(1, "E 1"), mk(0, "F 1")}}
+	cases := []struct {
+		from, to string
+		want     int
+	}{
+		{"", "", 4},
+		{"D", "E", 2}, // aceita minúscula no mapa
+		{"e", "", 2},  // de E em diante
+		{"", "C", 1},  // até C
+		{"G", "", 0},
+		{"C", "C", 1},
+	}
+	for _, c := range cases {
+		st := CountSeats(sm, SeatOptions{GroupSize: 1, RowFrom: c.from, RowTo: c.to})
+		if st.Free != c.want || st.Total != c.want {
+			t.Errorf("de %q até %q: %+v, esperado %d", c.from, c.to, st, c.want)
+		}
+	}
+}
+
+func TestRowFilterVerticalStaysInRange(t *testing.T) {
+	// D e E livres um atrás do outro; F fica fora do intervalo D-E.
+	sm := &cinemark.SeatMap{Elements: []cinemark.Seat{
+		{Row: 3, Col: 1, Name: "D 1", Status: 1, Type: 1, Selectable: true},
+		{Row: 2, Col: 1, Name: "E 1", Status: 1, Type: 1, Selectable: true},
+		{Row: 1, Col: 1, Name: "F 1", Status: 1, Type: 1, Selectable: true},
+	}}
+	st := CountSeats(sm, SeatOptions{GroupSize: 3, Vertical: true, RowFrom: "D", RowTo: "E"})
+	if st.Groups != 0 || st.BestRun != 2 {
+		t.Fatalf("%+v", st)
+	}
+}
+
+func TestRowBefore(t *testing.T) {
+	if !rowBefore("Z", "AA") || rowBefore("AA", "Z") || !rowBefore("A", "B") {
+		t.Fatal("ordem de letras errada")
 	}
 }
