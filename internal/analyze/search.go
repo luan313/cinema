@@ -26,8 +26,8 @@ type Filters struct {
 	OnlyWithGroups bool     `json:"onlyWithGroups"`
 	IncludeSpecial bool     `json:"includeSpecial"`
 	Vertical       bool     `json:"vertical"` // também vale assento na fileira da frente/de trás
-	RowFrom        string   `json:"rowFrom"`  // letra da primeira fileira (A = frente); vazio = todas
-	RowTo          string   `json:"rowTo"`    // letra da última fileira; vazio = todas
+	RowFrom        int      `json:"rowFrom"`  // 1ª fileira (1 = mais perto da tela); 0 = sem limite
+	RowTo          int      `json:"rowTo"`    // última fileira; 0 = até a última da sala
 }
 
 type Row struct {

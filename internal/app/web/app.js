@@ -29,42 +29,19 @@ const checked = name => [...document.querySelectorAll(`input[name=${name}]:check
 
 let job = null, timer = null, rows = [], sortKey = 'when', sortDir = 1, saved = store.get('filters', {});
 
-// Fileiras das salas do filme, da mais perto da tela para a mais longe.
-const fillRows = (letters, keep) => {
-  for (const id of ['rowfrom', 'rowto']) {
-    const el = $(id), cur = keep ? el.value : '';
-    el.innerHTML = '<option value="">Todas</option>' + letters.map(l => `<option value="${l}">${l}</option>`).join('');
-    el.value = letters.includes(cur) ? cur : '';
-  }
-};
-fillRows(['AA', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'], false); // até carregar as salas reais
-
 async function init() {
   setInterval(() => fetch('/api/ping').catch(() => {}), 5000); fetch('/api/ping').catch(() => {});
   api('version').then(v => $('ver').textContent = '· ' + v).catch(() => {});
   try {
-    const st = await api('states');
-    fillSelect($('state'), st, s => s.id, s => `${s.name} (${s.code})`, 'Escolha…');
-    if (saved.state) { $('state').value = saved.state; await loadCities(); }
+    fillSelect($('movie'), await api('movies'), m => m.id, m => m.name, 'Escolha…');
+    if (saved.movie) { $('movie').value = saved.movie; if ($('movie').value) await loadOptions(); }
   } catch (e) { showErr(e); }
-}
-async function loadCities() {
-  $('city').disabled = $('movie').disabled = true; $('filters').hidden = true;
-  if (!$('state').value) return;
-  fillSelect($('city'), await api('cities?stateId=' + $('state').value), c => c.id, c => c.name, 'Escolha…');
-  if (saved.city) { $('city').value = saved.city; if ($('city').value) await loadMovies(); }
-}
-async function loadMovies() {
-  $('movie').disabled = true; $('filters').hidden = true;
-  if (!$('city').value) return;
-  fillSelect($('movie'), await api('movies?cityId=' + $('city').value), m => m.id, m => m.name, 'Escolha…');
-  if (saved.movie) { $('movie').value = saved.movie; if ($('movie').value) await loadOptions(); }
 }
 async function loadOptions() {
   $('filters').hidden = true; $('results').hidden = true;
   if (!$('movie').value) return;
   $('status').textContent = 'Carregando opções…';
-  const o = await api(`options?movieId=${$('movie').value}&cityId=${$('city').value}`);
+  const o = await api(`options?movieId=${$('movie').value}`);
   $('status').textContent = '';
   const f = saved.f || {};
   chips($('dates'), o.dates, 'dates', d => d, fmtDate, v => !f.dates || f.dates.includes(String(v)));
@@ -73,26 +50,24 @@ async function loadOptions() {
   chips($('audios'), o.audios, 'audios', t => t.id, t => t.name, v => !f.audios || f.audios.includes(String(v)));
   for (const [id, k] of [['from', 'from'], ['to', 'to'], ['group', 'group'], ['minfree', 'minfree']]) if (f[k] !== undefined) $(id).value = f[k];
   $('rowfrom').value = f.rowfrom || ''; $('rowto').value = f.rowto || '';
+  $('rowhint').textContent = '';
   $('onlygroups').checked = !!f.onlygroups; $('vertical').checked = f.vertical !== false; $('special').checked = !!f.special;
   $('filters').hidden = false;
   const movie = $('movie').value;
-  api(`rows?movieId=${movie}&cityId=${$('city').value}`).then(letters => {
-    if (movie !== $('movie').value || !letters.length) return; // usuário já trocou de filme
-    fillRows(letters, false);
-    $('rowfrom').value = letters.includes(f.rowfrom) ? f.rowfrom : '';
-    $('rowto').value = letters.includes(f.rowto) ? f.rowto : '';
+  api(`rows?movieId=${movie}`).then(r => {
+    if (movie !== $('movie').value || !r.max) return; // usuário já trocou de filme
+    $('rowto').placeholder = `última (${r.max})`;
+    $('rowhint').textContent = r.min === r.max ? `As salas têm ${r.max} fileiras.` : `As salas têm de ${r.min} a ${r.max} fileiras (a maior tem ${r.max}).`;
   }).catch(() => {});
-  if (!o.dates.length) $('status').textContent = 'Sem sessões à venda para este filme na cidade.';
+  if (!o.dates.length) $('status').textContent = 'Sem sessões à venda para este filme nestes cinemas.';
 }
-$('state').onchange = () => { saved = { state: $('state').value }; store.set('filters', saved); loadCities().catch(showErr); };
-$('city').onchange = () => { saved = { state: $('state').value, city: $('city').value }; store.set('filters', saved); loadMovies().catch(showErr); };
-$('movie').onchange = () => { saved = { state: $('state').value, city: $('city').value, movie: $('movie').value }; store.set('filters', saved); loadOptions().catch(showErr); };
+$('movie').onchange = () => { saved = { movie: $('movie').value }; store.set('filters', saved); loadOptions().catch(showErr); };
 
 function collect() {
   const num = id => parseInt($(id).value, 10) || 0;
   return {
     dates: checked('dates'), theaterIds: checked('theaters').map(Number), features: checked('features').map(Number), audios: checked('audios').map(Number),
-    timeFrom: $('from').value, timeTo: $('to').value, rowFrom: $('rowfrom').value, rowTo: $('rowto').value, groupSize: Math.max(1, num('group')), minFree: num('minfree'),
+    timeFrom: $('from').value, timeTo: $('to').value, rowFrom: Math.max(0, num('rowfrom')), rowTo: Math.max(0, num('rowto')), groupSize: Math.max(1, num('group')), minFree: num('minfree'),
     onlyWithGroups: $('onlygroups').checked, vertical: $('vertical').checked, includeSpecial: $('special').checked,
   };
 }
@@ -112,7 +87,7 @@ $('go').onclick = async () => {
   const f = collect();
   $('go').disabled = true; $('stop').hidden = false; $('barwrap').hidden = false; $('bar').style.width = '0'; $('status').textContent = 'Buscando sessões…';
   try {
-    const { jobId } = await api('search', { method: 'POST', body: JSON.stringify({ movieId: $('movie').value, cityId: +$('city').value, filters: f }) });
+    const { jobId } = await api('search', { method: 'POST', body: JSON.stringify({ movieId: $('movie').value, filters: f }) });
     job = jobId;
     timer = setInterval(poll, 700); poll();
   } catch (e) { showErr(e); done(); }

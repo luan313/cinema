@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -53,12 +52,8 @@ func (s *Server) Handler(host string) http.Handler {
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 	mux.HandleFunc("/api/ping", s.ping)
 	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, s.Version) })
-	mux.HandleFunc("/api/states", s.proxy(func(ctx context.Context, r *http.Request) (any, error) { return s.Client.States(ctx) }))
-	mux.HandleFunc("/api/cities", s.proxy(func(ctx context.Context, r *http.Request) (any, error) {
-		return s.Client.Cities(ctx, intParam(r, "stateId"))
-	}))
 	mux.HandleFunc("/api/movies", s.proxy(func(ctx context.Context, r *http.Request) (any, error) {
-		return s.Client.Movies(ctx, intParam(r, "cityId"))
+		return s.Client.Movies(ctx, cityID)
 	}))
 	mux.HandleFunc("/api/options", s.proxy(s.options))
 	mux.HandleFunc("/api/rows", s.proxy(s.rows))
@@ -80,11 +75,6 @@ func hostGuard(host string, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-func intParam(r *http.Request, k string) int {
-	n, _ := strconv.Atoi(r.URL.Query().Get(k))
-	return n
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
@@ -109,9 +99,24 @@ func (s *Server) proxy(fn func(context.Context, *http.Request) (any, error)) htt
 	}
 }
 
+// sessions devolve as sessões do filme só nos cinemas atendidos pelo app.
+func (s *Server) sessions(ctx context.Context, movieID string) ([]cinemark.TheaterDay, error) {
+	days, err := s.Client.Sessions(ctx, movieID, cityID)
+	if err != nil {
+		return nil, err
+	}
+	kept := days[:0]
+	for _, d := range days {
+		if _, ok := cinemas[d.TheaterID]; ok {
+			kept = append(kept, d)
+		}
+	}
+	return kept, nil
+}
+
 // options lista, para o filme escolhido, o que existe nas sessões (datas, cinemas...).
 func (s *Server) options(ctx context.Context, r *http.Request) (any, error) {
-	days, err := s.Client.Sessions(ctx, r.URL.Query().Get("movieId"), intParam(r, "cityId"))
+	days, err := s.sessions(ctx, r.URL.Query().Get("movieId"))
 	if err != nil {
 		return nil, err
 	}
@@ -169,10 +174,11 @@ func (s *Server) options(ctx context.Context, r *http.Request) (any, error) {
 	return out, nil
 }
 
-// rows lista as fileiras das salas que exibem o filme, da mais perto da tela
-// para a mais longe. Consulta o mapa de uma sessão por sala (no máximo 40).
+// rows informa quantas fileiras têm as salas que exibem o filme (a menor e a
+// maior), para orientar o filtro por número de fileira. Consulta o mapa de uma
+// sessão por sala (no máximo 40).
 func (s *Server) rows(ctx context.Context, r *http.Request) (any, error) {
-	days, err := s.Client.Sessions(ctx, r.URL.Query().Get("movieId"), intParam(r, "cityId"))
+	days, err := s.sessions(ctx, r.URL.Query().Get("movieId"))
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +228,8 @@ func (s *Server) rows(ctx context.Context, r *http.Request) (any, error) {
 			ok = append(ok, m)
 		}
 	}
-	return analyze.RowOrder(ok), nil
+	min, max := analyze.RowCount(ok)
+	return map[string]int{"min": min, "max": max}, nil
 }
 
 type feature struct {
@@ -233,7 +240,6 @@ type feature struct {
 
 type searchReq struct {
 	MovieID string          `json:"movieId"`
-	CityID  int             `json:"cityId"`
 	Filters analyze.Filters `json:"filters"`
 }
 
@@ -243,10 +249,11 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req searchReq
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil || req.MovieID == "" || req.CityID == 0 {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil || req.MovieID == "" {
 		http.Error(w, "requisição inválida", http.StatusBadRequest)
 		return
 	}
+	req.Filters.TheaterIDs = allowedTheaters(req.Filters.TheaterIDs)
 	idb := make([]byte, 8)
 	rand.Read(idb)
 	id := hex.EncodeToString(idb)
@@ -257,7 +264,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	go func() {
 		defer cancel()
-		rows, err := analyze.Search(ctx, s.Client, req.MovieID, req.CityID, req.Filters, func(done, total int) {
+		rows, err := analyze.Search(ctx, s.Client, req.MovieID, cityID, req.Filters, func(done, total int) {
 			j.mu.Lock()
 			j.Done, j.Total = done, total
 			j.mu.Unlock()

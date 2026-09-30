@@ -36,14 +36,10 @@ th{font-size:12.5px;color:var(--muted);cursor:pointer;position:sticky;top:0;back
 <body>
 <main>
 <h1>Cinema · vagas por sessão</h1>
-<p class="sub">Consulta pública do Cinemark (sem login). Escolha o filme, defina os filtros e veja quantas poltronas restam em cada sessão. <span id="ver" class="muted"></span></p>
+<p class="sub">Cinemark Goiânia · Flamboyant e Passeio das Águas. Escolha o filme, defina os filtros e veja quantas poltronas restam em cada sessão. <span id="ver" class="muted"></span></p>
 
 <section class="card">
-  <div class="grid">
-    <div><label for="state">Estado</label><select id="state"></select></div>
-    <div><label for="city">Cidade</label><select id="city" disabled></select></div>
-    <div><label for="movie">Filme</label><select id="movie" disabled></select></div>
-  </div>
+  <label for="movie">Filme</label><select id="movie" disabled></select>
   <div id="err" class="msg"></div>
 </section>
 
@@ -53,8 +49,8 @@ th{font-size:12.5px;color:var(--muted);cursor:pointer;position:sticky;top:0;back
     <div><label for="to">Horário até</label><input id="to" type="time"></div>
     <div><label for="group">Assentos juntos (N)</label><input id="group" type="number" min="1" max="20" value="2"></div>
     <div><label for="minfree">Mínimo de assentos livres</label><input id="minfree" type="number" min="0" value="0"></div>
-    <div><label for="rowfrom">Fileira de (mais perto da tela)</label><select id="rowfrom"></select></div>
-    <div><label for="rowto">Fileira até (mais longe)</label><select id="rowto"></select></div>
+    <div><label for="rowfrom">Fileira nº a partir de</label><input id="rowfrom" type="number" min="1" placeholder="1"></div>
+    <div><label for="rowto">Fileira nº até</label><input id="rowto" type="number" min="1" placeholder="última"></div>
   </div>
   <h2>Datas</h2><div class="chips" id="dates"></div>
   <h2>Cinemas</h2><div class="chips" id="theaters"></div>
@@ -66,7 +62,7 @@ th{font-size:12.5px;color:var(--muted);cursor:pointer;position:sticky;top:0;back
     <label class="chip"><input type="checkbox" id="onlygroups"> Só sessões com N juntos</label>
     <label class="chip"><input type="checkbox" id="special"> Contar assentos especiais (cadeirante, acompanhante…)</label>
   </div>
-  <p class="hint">Nada marcado em uma categoria = todos. Em tecnologia, uma sessão só aparece se todos os seus formatos estiverem marcados (desmarcar 3D tira toda sessão 3D). “N juntos” conta grupos de N poltronas livres coladas: lado a lado e, se marcado, também na fileira da frente ou de trás. Corredores separam os grupos. Fileiras: o intervalo segue a posição na sala (da mais perto da tela até a mais longe), mesmo quando o cinema tem uma fileira “AA” na frente; só entram na conta as fileiras escolhidas. O número é um mínimo garantido.</p>
+  <p class="hint">Nada marcado em uma categoria = todos. Em tecnologia, uma sessão só aparece se todos os seus formatos estiverem marcados (desmarcar 3D tira toda sessão 3D). “N juntos” conta grupos de N poltronas livres coladas: lado a lado e, se marcado, também na fileira da frente ou de trás. Corredores separam os grupos. Fileiras: numeradas a partir da tela (1 = a mais perto) em direção ao fundo, em cada sala; vazio = todas. <span id="rowhint"></span> O número é um mínimo garantido.</p>
   <div class="row" style="margin-top:12px"><button id="go">Buscar vagas</button><button id="stop" class="ghost" hidden>Cancelar</button><span id="status" class="muted"></span></div>
   <div class="bar" style="margin-top:10px" hidden id="barwrap"><i id="bar"></i></div>
 </section>

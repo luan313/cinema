@@ -30,11 +30,11 @@ type point struct{ row, col int }
 
 // SeatOptions define o que conta como vaga e como os assentos se agrupam.
 type SeatOptions struct {
-	GroupSize      int    // N do grupo (mínimo 1)
-	IncludeSpecial bool   // inclui assentos de acessibilidade/acompanhante
-	Vertical       bool   // também vale assento na fileira da frente/de trás
-	RowFrom        string // fileira mais próxima da tela do intervalo (ex.: "E"); vazio = sem limite
-	RowTo          string // fileira mais distante da tela do intervalo; vazio = sem limite
+	GroupSize      int  // N do grupo (mínimo 1)
+	IncludeSpecial bool // inclui assentos de acessibilidade/acompanhante
+	Vertical       bool // também vale assento na fileira da frente/de trás
+	RowFrom        int  // 1ª fileira do intervalo (1 = mais perto da tela); 0 = sem limite
+	RowTo          int  // última fileira do intervalo; 0 = até a última da sala
 }
 
 // rowLabel devolve a letra da fileira ("D 4" -> "D"), em maiúsculas.
@@ -46,24 +46,12 @@ func rowLabel(name string) string {
 	return strings.ToUpper(f[0])
 }
 
-const (
-	rankMin = -1 << 30
-	rankMax = 1 << 30
-)
-
-// rowFilter restringe as fileiras pela posição na sala, e não pela ordem das
-// letras: em alguns cinemas a fileira "AA" fica na frente da "A". A posição de
-// cada letra é a distância até a tela (0 = a mais próxima).
-type rowFilter struct {
-	active bool
-	rank   map[string]int
-	lo, hi int
-}
-
-// rowRanks mede a distância de cada letra de fileira até a tela (0 = a mais
-// próxima). A tela (tipo 7) marca o lado da frente; sem ela, assume-se que fica
-// abaixo da última fileira, como nos mapas do site.
-func rowRanks(sm *cinemark.SeatMap) map[string]int {
+// rowOrdinals numera as fileiras da sala a partir da tela: 1 = a mais próxima,
+// 2 = a seguinte... A tela (tipo 7) marca o lado da frente; sem ela, assume-se
+// que fica abaixo da última fileira, como nos mapas do site. Linhas vazias
+// entre blocos não contam, e a letra não importa (algumas salas têm "AA" na
+// frente da "A").
+func rowOrdinals(sm *cinemark.SeatMap) map[string]int {
 	screen, maxRow := 0, 0
 	hasScreen := false
 	for _, e := range sm.Elements {
@@ -77,7 +65,7 @@ func rowRanks(sm *cinemark.SeatMap) map[string]int {
 	if !hasScreen {
 		screen = maxRow + 1
 	}
-	rank := map[string]int{}
+	depth := map[string]int{}
 	for _, e := range sm.Elements {
 		if e.Type == 7 {
 			continue
@@ -90,123 +78,65 @@ func rowRanks(sm *cinemark.SeatMap) map[string]int {
 		if d < 0 {
 			d = -d
 		}
-		if r, ok := rank[l]; !ok || d < r {
-			rank[l] = d
+		if cur, ok := depth[l]; !ok || d < cur {
+			depth[l] = d
 		}
 	}
-	return rank
-}
-
-// RowOrder junta as fileiras de várias salas, da mais perto da tela para a mais
-// longe (pela posição média), para montar o seletor de fileiras.
-func RowOrder(maps []*cinemark.SeatMap) []string {
-	sum, n := map[string]int{}, map[string]int{}
-	for _, sm := range maps {
-		// Posição ordinal na sala (0 = 1ª fileira a partir da tela), para que o
-		// tamanho de cada sala não distorça a média.
-		ranks := rowRanks(sm)
-		labels := make([]string, 0, len(ranks))
-		for l := range ranks {
-			labels = append(labels, l)
-		}
-		sort.Slice(labels, func(i, j int) bool {
-			if ranks[labels[i]] != ranks[labels[j]] {
-				return ranks[labels[i]] < ranks[labels[j]]
-			}
-			return labels[i] < labels[j]
-		})
-		for i, l := range labels {
-			sum[l] += i
-			n[l]++
-		}
+	labels := make([]string, 0, len(depth))
+	for l := range depth {
+		labels = append(labels, l)
 	}
-	out := make([]string, 0, len(sum))
-	for l := range sum {
-		out = append(out, l)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		a, b := float64(sum[out[i]])/float64(n[out[i]]), float64(sum[out[j]])/float64(n[out[j]])
-		if a != b {
-			return a < b
+	sort.Slice(labels, func(i, j int) bool {
+		if depth[labels[i]] != depth[labels[j]] {
+			return depth[labels[i]] < depth[labels[j]]
 		}
-		return out[i] < out[j]
+		return labels[i] < labels[j]
 	})
-	return out
+	ord := make(map[string]int, len(labels))
+	for i, l := range labels {
+		ord[l] = i + 1
+	}
+	return ord
 }
 
-func newRowFilter(sm *cinemark.SeatMap, from, to string) rowFilter {
-	f := rowFilter{lo: rankMin, hi: rankMax}
-	if from == "" && to == "" {
-		return f
-	}
-	f.active = true
-	f.rank = rowRanks(sm)
-
-	f.lo, f.hi = f.resolveFrom(from), f.resolveTo(to)
-	if from != "" && to != "" && f.lo > f.hi { // intervalo escolhido ao contrário
-		if lo, hi := f.resolveFrom(to), f.resolveTo(from); lo <= hi {
-			f.lo, f.hi = lo, hi
+// RowCount devolve a menor e a maior quantidade de fileiras entre as salas.
+func RowCount(maps []*cinemark.SeatMap) (min, max int) {
+	for i, sm := range maps {
+		n := len(rowOrdinals(sm))
+		if i == 0 || n < min {
+			min = n
+		}
+		if n > max {
+			max = n
 		}
 	}
-	return f
+	return min, max
 }
 
-// nearest acha, entre as fileiras de uma letra só, a mais próxima de l
-// (a primeira em ordem alfabética >= l se after, senão a última <= l).
-func (f rowFilter) nearest(l string, after bool) (int, bool) {
-	best, found := "", false
-	for c := range f.rank {
-		if len(c) != 1 {
-			continue
-		}
-		if after && c >= l && (!found || c < best) || !after && c <= l && (!found || c > best) {
-			best, found = c, true
-		}
-	}
-	return f.rank[best], found
+// rowFilter limita as fileiras pelo número (1 = mais perto da tela). Zero em
+// from/to = sem limite; um intervalo invertido (de 9 até 3) vale como 3 a 9.
+type rowFilter struct {
+	active   bool
+	ord      map[string]int
+	from, to int
 }
 
-// resolveFrom devolve a posição inicial do intervalo. Letra ausente na sala:
-// vale a próxima letra existente (ex.: sem "I", "de I" começa em "J"); letras
-// duplas ausentes (ex.: "AA") não limitam.
-func (f rowFilter) resolveFrom(l string) int {
-	if l == "" {
-		return rankMin
+func newRowFilter(sm *cinemark.SeatMap, from, to int) rowFilter {
+	if from <= 0 && to <= 0 {
+		return rowFilter{}
 	}
-	if r, ok := f.rank[l]; ok {
-		return r
+	if from > 0 && to > 0 && from > to {
+		from, to = to, from
 	}
-	if len(l) > 1 {
-		return rankMin
-	}
-	if r, ok := f.nearest(l, true); ok {
-		return r
-	}
-	return rankMax
-}
-
-func (f rowFilter) resolveTo(l string) int {
-	if l == "" {
-		return rankMax
-	}
-	if r, ok := f.rank[l]; ok {
-		return r
-	}
-	if len(l) > 1 {
-		return rankMax
-	}
-	if r, ok := f.nearest(l, false); ok {
-		return r
-	}
-	return rankMin
+	return rowFilter{active: true, ord: rowOrdinals(sm), from: from, to: to}
 }
 
 func (f rowFilter) allows(label string) bool {
 	if !f.active {
 		return true
 	}
-	r, ok := f.rank[label]
-	return ok && r >= f.lo && r <= f.hi
+	o, ok := f.ord[label]
+	return ok && (f.from <= 0 || o >= f.from) && (f.to <= 0 || o <= f.to)
 }
 
 // CountSeats analisa o mapa. Assentos livres são "juntos" quando vizinhos na
@@ -216,12 +146,11 @@ func (f rowFilter) allows(label string) bool {
 // assentos das fileiras entre RowFrom e RowTo.
 func CountSeats(sm *cinemark.SeatMap, o SeatOptions) SeatStats {
 	groupSize, includeSpecial, vertical := o.GroupSize, o.IncludeSpecial, o.Vertical
-	from, to := strings.ToUpper(strings.TrimSpace(o.RowFrom)), strings.ToUpper(strings.TrimSpace(o.RowTo))
 	if groupSize < 1 {
 		groupSize = 1
 	}
 	st := SeatStats{GroupSize: groupSize}
-	rows := newRowFilter(sm, from, to)
+	rows := newRowFilter(sm, o.RowFrom, o.RowTo)
 	free := map[point]bool{}
 	for _, e := range sm.Elements {
 		if nonSeatTypes[e.Type] || (specialTypes[e.Type] && !includeSpecial) {

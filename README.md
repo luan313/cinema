@@ -1,9 +1,11 @@
 # Cinema · vagas por sessão
 
 App para Windows que consulta o site do Cinemark (sem login) e mostra quantas
-poltronas restam em cada sessão de um filme, respeitando os seus filtros:
-cidade, cinemas, datas, faixa de horário, tecnologia (2D, IMAX, XD…), áudio
-(dublado/legendado), mínimo de assentos livres e **N assentos lado a lado**.
+poltronas restam em cada sessão de um filme nos cinemas **Flamboyant** e
+**Passeio das Águas** (Goiânia), respeitando os seus filtros:
+cinemas, datas, faixa de horário, tecnologia (2D, IMAX, XD…), áudio
+(dublado/legendado), mínimo de assentos livres, **N assentos juntos** e intervalo de fileiras por número
+(1 = a mais perto da tela, contando para o fundo em cada sala).
 
 ## Instalar
 

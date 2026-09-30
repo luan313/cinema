@@ -39,3 +39,33 @@ func TestIndexServed(t *testing.T) {
 		t.Fatalf("index não servido: %d", w.Code)
 	}
 }
+
+func TestAllowedTheaters(t *testing.T) {
+	sameSet := func(got []int, want ...int) bool {
+		if len(got) != len(want) {
+			return false
+		}
+		m := map[int]bool{}
+		for _, g := range got {
+			m[g] = true
+		}
+		for _, w := range want {
+			if !m[w] {
+				return false
+			}
+		}
+		return true
+	}
+	if got := allowedTheaters(nil); !sameSet(got, 2133, 2113) {
+		t.Errorf("vazio: %v", got)
+	}
+	if got := allowedTheaters([]int{2133}); !sameSet(got, 2133) {
+		t.Errorf("um cinema: %v", got)
+	}
+	if got := allowedTheaters([]int{999, 2113}); !sameSet(got, 2113) {
+		t.Errorf("cinema de fora é ignorado: %v", got)
+	}
+	if got := allowedTheaters([]int{999}); !sameSet(got, 2133, 2113) {
+		t.Errorf("só cinema de fora volta para os dois: %v", got)
+	}
+}

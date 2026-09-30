@@ -128,34 +128,33 @@ func TestRowFilter(t *testing.T) {
 	mk := func(row int, name string) cinemark.Seat {
 		return cinemark.Seat{Row: row, Col: 1, Name: name, Status: 1, Type: 1, Selectable: true}
 	}
+	// Sem tela no mapa, a frente é a maior linha: C(3)=1, D(2)=2, E(1)=3, F(0)=4.
 	sm := &cinemark.SeatMap{Elements: []cinemark.Seat{mk(3, "C 1"), mk(2, "d 1"), mk(1, "E 1"), mk(0, "F 1")}}
-	cases := []struct {
-		from, to string
-		want     int
-	}{
-		{"", "", 4},
-		{"D", "E", 2}, // aceita minúscula no mapa
-		{"e", "", 2},  // de E em diante
-		{"", "C", 1},  // até C
-		{"G", "", 0},
-		{"C", "C", 1},
+	cases := []struct{ from, to, want int }{
+		{0, 0, 4},
+		{2, 3, 2},
+		{3, 0, 2}, // da 3ª em diante
+		{0, 1, 1}, // até a 1ª
+		{5, 0, 0},
+		{1, 1, 1},
 	}
 	for _, c := range cases {
 		st := CountSeats(sm, SeatOptions{GroupSize: 1, RowFrom: c.from, RowTo: c.to})
 		if st.Free != c.want || st.Total != c.want {
-			t.Errorf("de %q até %q: %+v, esperado %d", c.from, c.to, st, c.want)
+			t.Errorf("de %d até %d: %+v, esperado %d", c.from, c.to, st, c.want)
 		}
 	}
 }
 
 func TestRowFilterVerticalStaysInRange(t *testing.T) {
-	// D e E livres um atrás do outro; F fica fora do intervalo D-E.
+	// D, E e F livres um atrás do outro; só as fileiras 1 e 2 (D, E) entram.
 	sm := &cinemark.SeatMap{Elements: []cinemark.Seat{
 		{Row: 3, Col: 1, Name: "D 1", Status: 1, Type: 1, Selectable: true},
 		{Row: 2, Col: 1, Name: "E 1", Status: 1, Type: 1, Selectable: true},
 		{Row: 1, Col: 1, Name: "F 1", Status: 1, Type: 1, Selectable: true},
+		{Row: 4, Type: 7},
 	}}
-	st := CountSeats(sm, SeatOptions{GroupSize: 3, Vertical: true, RowFrom: "D", RowTo: "E"})
+	st := CountSeats(sm, SeatOptions{GroupSize: 3, Vertical: true, RowFrom: 1, RowTo: 2})
 	if st.Groups != 0 || st.BestRun != 2 {
 		t.Fatalf("%+v", st)
 	}
@@ -176,21 +175,22 @@ func flamboyantLike() *cinemark.SeatMap {
 	return sm
 }
 
-func TestRowFilterUsesPositionNotAlphabet(t *testing.T) {
+func TestRowNumbersFollowPositionNotLetters(t *testing.T) {
+	// Fileiras da frente para o fundo: AA=1 A=2 B=3 C=4 D=5 E=6 F=7 G=8 H=9 I=10 J=11 K=12 L=13 M=14 N=15.
 	sm := flamboyantLike()
 	cases := []struct {
 		name     string
-		from, to string
+		from, to int
 		want     int
 	}{
-		{"sem filtro", "", "", 15},
-		{"de J em diante (fundo): J K L M N", "J", "", 5},
-		{"AA fica na frente e não entra em J+", "J", "N", 5},
-		{"de A até C", "A", "C", 3},
-		{"AA até B: frente", "AA", "B", 3},
-		{"intervalo invertido é aceito", "J", "A", 10}, // A B C D E F G H I J
-		{"só AA", "AA", "AA", 1},
-		{"até C: AA A B C", "", "C", 4},
+		{"sem filtro", 0, 0, 15},
+		{"da 11ª em diante = J K L M N", 11, 0, 5},
+		{"AA (fileira 1) não entra de J em diante", 11, 15, 5},
+		{"só a fileira 1 (AA)", 1, 1, 1},
+		{"1 a 4: AA A B C", 1, 4, 4},
+		{"intervalo invertido é aceito (9 a 3)", 9, 3, 7},
+		{"além da maior sala", 20, 0, 0},
+		{"até a 20ª = todas", 0, 20, 15},
 	}
 	for _, c := range cases {
 		st := CountSeats(sm, SeatOptions{GroupSize: 1, RowFrom: c.from, RowTo: c.to})
@@ -200,34 +200,29 @@ func TestRowFilterUsesPositionNotAlphabet(t *testing.T) {
 	}
 }
 
-func TestRowFilterMissingLetter(t *testing.T) {
-	sm := flamboyantLike()
-	// remove a fileira I: "de I" passa a valer "de J" (a próxima existente).
-	kept := sm.Elements[:0]
-	for _, e := range sm.Elements {
-		if e.Name != "I 1" {
-			kept = append(kept, e)
-		}
-	}
-	sm.Elements = kept
-	if st := CountSeats(sm, SeatOptions{GroupSize: 1, RowFrom: "I"}); st.Free != 5 {
-		t.Fatalf("de I sem a fileira I: %+v", st)
-	}
-	if st := CountSeats(sm, SeatOptions{GroupSize: 1, RowFrom: "Z"}); st.Free != 0 {
-		t.Fatalf("de Z: %+v", st)
-	}
-}
-
-func TestRowOrder(t *testing.T) {
-	a := flamboyantLike() // AA, A, B, C, D, E ... N
+// Salas menores simplesmente têm menos fileiras: a 11ª não existe numa sala de 3.
+func TestRowNumbersSmallRoom(t *testing.T) {
 	small := &cinemark.SeatMap{Elements: []cinemark.Seat{
 		{Row: 1, Name: "C 1", Status: 1, Type: 1, Selectable: true},
 		{Row: 2, Name: "B 1", Status: 1, Type: 1, Selectable: true},
 		{Row: 3, Name: "A 1", Status: 1, Type: 1, Selectable: true},
 		{Row: 4, Type: 7},
 	}}
-	got := RowOrder([]*cinemark.SeatMap{a, small})
-	if got[0] != "AA" || got[1] != "A" || got[len(got)-1] != "N" || len(got) != 15 {
-		t.Fatalf("ordem: %v", got)
+	if st := CountSeats(small, SeatOptions{GroupSize: 1, RowFrom: 2}); st.Free != 2 { // B e C
+		t.Fatalf("da 2ª: %+v", st)
+	}
+	if st := CountSeats(small, SeatOptions{GroupSize: 1, RowFrom: 11}); st.Free != 0 {
+		t.Fatalf("da 11ª: %+v", st)
+	}
+}
+
+func TestRowCount(t *testing.T) {
+	small := &cinemark.SeatMap{Elements: []cinemark.Seat{
+		{Row: 1, Name: "C 1", Status: 1, Type: 1, Selectable: true},
+		{Row: 2, Name: "B 1", Status: 1, Type: 1, Selectable: true},
+		{Row: 3, Name: "A 1", Status: 1, Type: 1, Selectable: true},
+	}}
+	if min, max := RowCount([]*cinemark.SeatMap{flamboyantLike(), small}); min != 3 || max != 15 {
+		t.Fatalf("min=%d max=%d", min, max)
 	}
 }
