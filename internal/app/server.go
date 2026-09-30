@@ -61,6 +61,7 @@ func (s *Server) Handler(host string) http.Handler {
 		return s.Client.Movies(ctx, intParam(r, "cityId"))
 	}))
 	mux.HandleFunc("/api/options", s.proxy(s.options))
+	mux.HandleFunc("/api/rows", s.proxy(s.rows))
 	mux.HandleFunc("/api/search", s.search)
 	mux.HandleFunc("/api/job", s.jobStatus)
 	mux.HandleFunc("/api/cancel", s.cancel)
@@ -166,6 +167,62 @@ func (s *Server) options(ctx context.Context, r *http.Request) (any, error) {
 	}
 	sort.Slice(out.Audios, func(i, j int) bool { return out.Audios[i].ID < out.Audios[j].ID })
 	return out, nil
+}
+
+// rows lista as fileiras das salas que exibem o filme, da mais perto da tela
+// para a mais longe. Consulta o mapa de uma sessão por sala (no máximo 40).
+func (s *Server) rows(ctx context.Context, r *http.Request) (any, error) {
+	days, err := s.Client.Sessions(ctx, r.URL.Query().Get("movieId"), intParam(r, "cityId"))
+	if err != nil {
+		return nil, err
+	}
+	type room struct {
+		theater int
+		number  int
+	}
+	seen := map[room]bool{}
+	type pick struct {
+		theater int
+		session string
+	}
+	var picks []pick
+	for _, d := range days {
+		for _, rm := range d.Rooms {
+			k := room{d.TheaterID, rm.Number}
+			if seen[k] || len(picks) >= 40 {
+				continue
+			}
+			for _, ss := range rm.Sessions {
+				if !ss.Expired {
+					seen[k] = true
+					picks = append(picks, pick{d.TheaterID, ss.ID})
+					break
+				}
+			}
+		}
+	}
+	maps := make([]*cinemark.SeatMap, len(picks))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
+	for i, p := range picks {
+		wg.Add(1)
+		go func(i int, p pick) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if sm, err := s.Client.SeatMap(ctx, p.theater, p.session); err == nil {
+				maps[i] = sm
+			}
+		}(i, p)
+	}
+	wg.Wait()
+	var ok []*cinemark.SeatMap
+	for _, m := range maps {
+		if m != nil {
+			ok = append(ok, m)
+		}
+	}
+	return analyze.RowOrder(ok), nil
 }
 
 type feature struct {

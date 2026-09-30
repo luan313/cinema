@@ -161,8 +161,73 @@ func TestRowFilterVerticalStaysInRange(t *testing.T) {
 	}
 }
 
-func TestRowBefore(t *testing.T) {
-	if !rowBefore("Z", "AA") || rowBefore("AA", "Z") || !rowBefore("A", "B") {
-		t.Fatal("ordem de letras errada")
+// Reproduz a sala 8 do Flamboyant: a tela fica embaixo (linha 18) e a fileira
+// "AA" é a mais próxima dela, na frente da "A".
+func flamboyantLike() *cinemark.SeatMap {
+	labels := []string{"N", "M", "L", "K", "J", "I", "H", "G", "F", "E", "D", "", "C", "B", "A", "AA"}
+	sm := &cinemark.SeatMap{}
+	for i, l := range labels {
+		if l == "" {
+			continue // linha vazia entre as fileiras D e C
+		}
+		sm.Elements = append(sm.Elements, cinemark.Seat{Row: i + 1, Col: 1, Name: l + " 1", Status: 1, Type: 1, Selectable: true})
+	}
+	sm.Elements = append(sm.Elements, cinemark.Seat{Row: 18, Col: 0, Name: " ", Type: 7})
+	return sm
+}
+
+func TestRowFilterUsesPositionNotAlphabet(t *testing.T) {
+	sm := flamboyantLike()
+	cases := []struct {
+		name     string
+		from, to string
+		want     int
+	}{
+		{"sem filtro", "", "", 15},
+		{"de J em diante (fundo): J K L M N", "J", "", 5},
+		{"AA fica na frente e não entra em J+", "J", "N", 5},
+		{"de A até C", "A", "C", 3},
+		{"AA até B: frente", "AA", "B", 3},
+		{"intervalo invertido é aceito", "J", "A", 10}, // A B C D E F G H I J
+		{"só AA", "AA", "AA", 1},
+		{"até C: AA A B C", "", "C", 4},
+	}
+	for _, c := range cases {
+		st := CountSeats(sm, SeatOptions{GroupSize: 1, RowFrom: c.from, RowTo: c.to})
+		if st.Free != c.want {
+			t.Errorf("%s: %+v, esperado %d", c.name, st, c.want)
+		}
+	}
+}
+
+func TestRowFilterMissingLetter(t *testing.T) {
+	sm := flamboyantLike()
+	// remove a fileira I: "de I" passa a valer "de J" (a próxima existente).
+	kept := sm.Elements[:0]
+	for _, e := range sm.Elements {
+		if e.Name != "I 1" {
+			kept = append(kept, e)
+		}
+	}
+	sm.Elements = kept
+	if st := CountSeats(sm, SeatOptions{GroupSize: 1, RowFrom: "I"}); st.Free != 5 {
+		t.Fatalf("de I sem a fileira I: %+v", st)
+	}
+	if st := CountSeats(sm, SeatOptions{GroupSize: 1, RowFrom: "Z"}); st.Free != 0 {
+		t.Fatalf("de Z: %+v", st)
+	}
+}
+
+func TestRowOrder(t *testing.T) {
+	a := flamboyantLike() // AA, A, B, C, D, E ... N
+	small := &cinemark.SeatMap{Elements: []cinemark.Seat{
+		{Row: 1, Name: "C 1", Status: 1, Type: 1, Selectable: true},
+		{Row: 2, Name: "B 1", Status: 1, Type: 1, Selectable: true},
+		{Row: 3, Name: "A 1", Status: 1, Type: 1, Selectable: true},
+		{Row: 4, Type: 7},
+	}}
+	got := RowOrder([]*cinemark.SeatMap{a, small})
+	if got[0] != "AA" || got[1] != "A" || got[len(got)-1] != "N" || len(got) != 15 {
+		t.Fatalf("ordem: %v", got)
 	}
 }

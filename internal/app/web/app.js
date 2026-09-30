@@ -29,11 +29,15 @@ const checked = name => [...document.querySelectorAll(`input[name=${name}]:check
 
 let job = null, timer = null, rows = [], sortKey = 'when', sortDir = 1, saved = store.get('filters', {});
 
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-for (const id of ['rowfrom', 'rowto']) {
-  const el = $(id);
-  el.innerHTML = '<option value="">Todas</option>' + LETTERS.map(l => `<option value="${l}">${l}</option>`).join('');
-}
+// Fileiras das salas do filme, da mais perto da tela para a mais longe.
+const fillRows = (letters, keep) => {
+  for (const id of ['rowfrom', 'rowto']) {
+    const el = $(id), cur = keep ? el.value : '';
+    el.innerHTML = '<option value="">Todas</option>' + letters.map(l => `<option value="${l}">${l}</option>`).join('');
+    el.value = letters.includes(cur) ? cur : '';
+  }
+};
+fillRows(['AA', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'], false); // até carregar as salas reais
 
 async function init() {
   setInterval(() => fetch('/api/ping').catch(() => {}), 5000); fetch('/api/ping').catch(() => {});
@@ -71,6 +75,13 @@ async function loadOptions() {
   $('rowfrom').value = f.rowfrom || ''; $('rowto').value = f.rowto || '';
   $('onlygroups').checked = !!f.onlygroups; $('vertical').checked = f.vertical !== false; $('special').checked = !!f.special;
   $('filters').hidden = false;
+  const movie = $('movie').value;
+  api(`rows?movieId=${movie}&cityId=${$('city').value}`).then(letters => {
+    if (movie !== $('movie').value || !letters.length) return; // usuário já trocou de filme
+    fillRows(letters, false);
+    $('rowfrom').value = letters.includes(f.rowfrom) ? f.rowfrom : '';
+    $('rowto').value = letters.includes(f.rowto) ? f.rowto : '';
+  }).catch(() => {});
   if (!o.dates.length) $('status').textContent = 'Sem sessões à venda para este filme na cidade.';
 }
 $('state').onchange = () => { saved = { state: $('state').value }; store.set('filters', saved); loadCities().catch(showErr); };
